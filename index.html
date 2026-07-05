@@ -22,7 +22,7 @@
       --accent: #4ade80;
       --accent2: #60a5fa;
       --accent3: #f472b6;
-      --text: #e2e8f0;
+      --text: #e2e8f0;gemini-2.5-flash
       --text-dim: #64748b;
       --text-mid: #94a3b8;
       --danger: #f87171;
@@ -894,9 +894,6 @@ async function sendChat() {
     const data = await res.json();
     if (data.error) throw new Error(data.error.message);
     const reply = data.candidates[0].content.parts[0].text;
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
     const reply = data.candidates[0].content.parts[0].text;
     chatHistory.push({ role: 'assistant', content: reply });
     const match = reply.match(/\[최종추천\]([\s\S]*?)\[\/최종추천\]/);
