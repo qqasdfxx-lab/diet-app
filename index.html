@@ -619,20 +619,27 @@ sb.auth.onAuthStateChange(async (event, session) => {
 // ══════════════════════════════════════════
 async function loadUserData() {
   const uid = currentUser.id;
-  // profile
-  const { data: pd } = await sb.from('profiles').select('*').eq('user_id', uid).single();
-  if (pd) {
-    profile = pd.data;
-    weekDay = pd.week_day ?? 1;
-    dietStyle = pd.diet_style ?? null;
-    await loadHistory();
-    restoreUI();
+  try {
+    const { data: pd, error } = await sb
+      .from('profiles')
+      .select('*')
+      .eq('user_id', uid)
+      .maybeSingle();
+    if (error) console.error('profiles 조회 오류:', error);
+    if (pd) {
+      profile = pd.data;
+      weekDay = pd.week_day ?? 1;
+      dietStyle = pd.diet_style ?? null;
+      await loadHistory();
+      restoreUI();
+    }
+  } catch (e) {
+    console.error('loadUserData 오류:', e);
   }
   initStyleGrid();
   initChat();
   checkToday();
 }
-
 async function saveToCloud(field, value) {
   const uid = currentUser.id;
   const { data: existing } = await sb.from('profiles').select('id').eq('user_id', uid).single();
