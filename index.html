@@ -583,16 +583,35 @@ async function doLogout() {
 }
 
 // ── AUTH STATE CHANGE ──
+// ── AUTH STATE CHANGE ──
+let authResolved = false;
+
+setTimeout(() => {
+  if (!authResolved) {
+    authResolved = true;
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('app-screen').style.display = 'none';
+  }
+}, 4000);
+
 sb.auth.onAuthStateChange(async (event, session) => {
   if (session?.user) {
+    authResolved = true;
     currentUser = session.user;
     document.getElementById('user-email-display').textContent = currentUser.email;
-    document.getElementById('loading').style.display = 'flex';
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('app-screen').style.display = 'block';
-    await loadUserData();
+    document.getElementById('loading').style.display = 'flex';
+    try {
+      await loadUserData();
+    } catch (e) {
+      console.error('데이터 로드 오류:', e);
+    }
     document.getElementById('loading').style.display = 'none';
   } else {
+    if (authResolved) return;
+    authResolved = true;
     currentUser = null;
     document.getElementById('loading').style.display = 'none';
     document.getElementById('auth-screen').style.display = 'flex';
