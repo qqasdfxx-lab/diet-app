@@ -578,11 +578,6 @@ async function doGoogleAuth() {
   await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
 }
 
-async function doLogout() {
-  await sb.auth.signOut();
-}
-
-// ── AUTH STATE CHANGE ──
 // ── AUTH STATE CHANGE ──
 let authResolved = false;
 
