@@ -894,7 +894,6 @@ async function sendChat() {
     const data = await res.json();
     if (data.error) throw new Error(data.error.message);
     const reply = data.candidates[0].content.parts[0].text;
-    const reply = data.candidates[0].content.parts[0].text;
     chatHistory.push({ role: 'assistant', content: reply });
     const match = reply.match(/\[최종추천\]([\s\S]*?)\[\/최종추천\]/);
     const displayText = reply.replace(/\[최종추천\][\s\S]*?\[\/최종추천\]/, '').trim();
