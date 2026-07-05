@@ -884,11 +884,10 @@ async function sendChat() {
   const messages = [{ role: 'user', content: systemPrompt + '\n\n---\n\n' + chatHistory.map(m => `${m.role === 'user' ? '사용자' : '상담사'}: ${m.content}`).join('\n') }];
 
   try {
-   const geminiKey = "AQ.Ab8RN6LW46t_Gdy-T3KaoiI2R9kp9TnqDscQnCe5YavqcOreMg";
-    const userText = messages.map(m => m.content).join('\n');
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
+  const userText = messages.map(m => m.content).join('\n');
+    const res = await fetch('/api/gemini', {
       method: 'POST',
-     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: userText }] }] })
     });
     const data = await res.json();
@@ -1010,10 +1009,9 @@ ${input}
 한국어로 답변해주세요.`;
 
   try {
-    const geminiKey = "AQ.Ab8RN6LW46t_Gdy-T3KaoiI2R9kp9TnqDscQnCe5YavqcOreMg";
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
+    const res = await fetch('/api/gemini', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     });
     const data = await res.json();
