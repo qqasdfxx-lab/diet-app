@@ -590,6 +590,11 @@ setTimeout(() => {
   }
 }, 4000);
 
+// 로딩 스피너 안전장치: 6초 후 무조건 숨김
+setTimeout(() => {
+  document.getElementById('loading').style.display = 'none';
+}, 6000);
+
 sb.auth.onAuthStateChange(async (event, session) => {
   if (session?.user) {
     authResolved = true;
