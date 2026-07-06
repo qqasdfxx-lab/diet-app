@@ -22,7 +22,7 @@
       --accent: #4ade80;
       --accent2: #60a5fa;
       --accent3: #f472b6;
-      --text: #e2e8f0;gemini-2.5-flash
+      --text: #e2e8f0;
       --text-dim: #64748b;
       --text-mid: #94a3b8;
       --danger: #f87171;
@@ -313,6 +313,37 @@
       .stat4 { grid-template-columns: repeat(2,1fr); }
       .style-grid { grid-template-columns: 1fr; }
     }
+    /* 데스크톱: 식단 패널을 2단으로 — 왼쪽 입력/분석, 오른쪽 AI 질문창(고정) */
+    @media (min-width: 860px) {
+      #panel-diet.on {
+        display: grid;
+        grid-template-columns: minmax(0,1fr) 320px;
+        grid-template-areas:
+          "top top"
+          "input qa"
+          "result qa";
+        gap: 16px;
+        max-width: 920px;
+        width: 100vw;
+        position: relative;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      #panel-diet #prof-warn,
+      #panel-diet #today-summary { grid-area: top; }
+      #panel-diet #diet-input-card { grid-area: input; }
+      #panel-diet #analysis-card { grid-area: result; }
+      #panel-diet #diet-qa-card {
+        grid-area: qa;
+        position: sticky;
+        top: 16px;
+        align-self: start;
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100vh - 32px);
+      }
+      #panel-diet #diet-qa-card .chat-msgs { flex: 1; height: auto; min-height: 220px; }
+    }
     .apply-chat-btn {
       width: 100%; padding: 12px;
       background: linear-gradient(135deg, #8b5cf6, #6d28d9);
@@ -470,7 +501,7 @@
           <div class="stat"><div class="stat-val" style="color:#f472b6" id="s-f">—</div><div class="stat-lbl">지방 g</div></div>
         </div>
       </div>
-      <div class="card">
+      <div class="card" id="diet-input-card">
         <div class="sec">오늘 먹은 음식</div>
         <textarea id="food-input" placeholder="예: 아침 달걀 2개, 오트밀 80g / 점심 닭가슴살 150g, 밥 200g / 저녁 삼겹살 200g" style="height:80px"></textarea>
         <button class="btn-main" onclick="analyze()">🔍 영양 분석 + AI 추천</button>
@@ -481,6 +512,15 @@
         <div class="divider"></div>
         <div class="sec">Claude AI 추천</div>
         <div class="result-box" id="ai-result">분석 결과가 여기에 표시됩니다.</div>
+      </div>
+      <div class="card" id="diet-qa-card">
+        <div class="sec">💬 분석 결과 물어보기</div>
+        <div class="chat-msgs" id="diet-qa-msgs" style="height:180px"></div>
+        <div class="chat-row">
+          <input type="text" id="diet-qa-in" placeholder="예: 단백질 더 채우려면 뭘 먹을까요?" onkeydown="if(event.key==='Enter')sendDietQA()" disabled>
+          <button class="chat-send" onclick="sendDietQA()">전송</button>
+        </div>
+        <p id="diet-qa-hint" style="font-size:12px;color:var(--text-dim);margin-top:8px">먼저 위에서 분석을 실행하면 결과에 대해 물어볼 수 있어요.</p>
       </div>
     </div>
 
@@ -528,6 +568,8 @@ let targets = null;
 let selectedStyleKey = null;
 let chatHistory = [];
 let chatResult = null;
+let dietQAHistory = [];
+let lastAnalysisContext = '';
 
 // ── STYLE PRESETS ──
 const STYLES = {
@@ -856,14 +898,28 @@ function initChat() {
   addMsg('ai', `안녕하세요! 저는 Claude AI 영양 상담사입니다. 🥗\n\n어떤 다이어트 스타일이 맞는지 모르겠다면 편하게 말씀해주세요.\n\n예) "밥을 못 끊겠어요" / "운동을 주 4회 하는데 근육은 유지하고 싶어요" / "야식을 자주 먹어요"`);
 }
 
-function addMsg(role, text) {
-  const msgs = document.getElementById('chat-msgs');
+function addMsg(role, text, containerId = 'chat-msgs') {
+  const msgs = document.getElementById(containerId);
   const div = document.createElement('div');
   div.className = 'msg ' + role;
   div.textContent = text;
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
   return div;
+}
+
+// ══════════════════════════════════════════
+// GEMINI API HELPER (상담/분석/질문 공용)
+// ══════════════════════════════════════════
+async function callGemini(promptText) {
+  const res = await fetch('/api/gemini', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.candidates[0].content.parts[0].text;
 }
 
 async function sendChat() {
@@ -884,15 +940,8 @@ async function sendChat() {
   const messages = [{ role: 'user', content: systemPrompt + '\n\n---\n\n' + chatHistory.map(m => `${m.role === 'user' ? '사용자' : '상담사'}: ${m.content}`).join('\n') }];
 
   try {
-  const userText = messages.map(m => m.content).join('\n');
-    const res = await fetch('/api/gemini', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: userText }] }] })
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    const reply = data.candidates[0].content.parts[0].text;
+    const userText = messages.map(m => m.content).join('\n');
+    const reply = await callGemini(userText);
     chatHistory.push({ role: 'assistant', content: reply });
     const match = reply.match(/\[최종추천\]([\s\S]*?)\[\/최종추천\]/);
     const displayText = reply.replace(/\[최종추천\][\s\S]*?\[\/최종추천\]/, '').trim();
@@ -1009,22 +1058,53 @@ ${input}
 한국어로 답변해주세요.`;
 
   try {
-    const res = await fetch('/api/gemini', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    const text = data.candidates[0].content.parts[0].text;
+    const text = await callGemini(prompt);
     const intake = parseIntake(text);
     if (intake) renderBars(intake);
     else document.getElementById('macro-bars').innerHTML = '';
     aiDiv.className = 'result-box active';
     aiDiv.innerHTML = marked.parse(text);
+    resetDietQA(text);
   } catch (err) {
     aiDiv.className = 'result-box active';
     aiDiv.innerHTML = `<span style="color:var(--danger)">오류: ${err.message}</span>`;
+  }
+}
+
+// ══════════════════════════════════════════
+// DIET Q&A (분석 결과 후속 질문)
+// ══════════════════════════════════════════
+function resetDietQA(analysisText) {
+  lastAnalysisContext = analysisText;
+  dietQAHistory = [];
+  document.getElementById('diet-qa-msgs').innerHTML = '';
+  document.getElementById('diet-qa-in').disabled = false;
+  document.getElementById('diet-qa-hint').style.display = 'none';
+  addMsg('ai', '분석 결과에 대해 궁금한 점을 물어보세요. 예) "탄수화물을 더 줄이려면?" "저녁에 뭘 더 채울까요?"', 'diet-qa-msgs');
+}
+
+async function sendDietQA() {
+  if (!lastAnalysisContext) return;
+  const inp = document.getElementById('diet-qa-in');
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  addMsg('user', text, 'diet-qa-msgs');
+  dietQAHistory.push({ role: 'user', content: text });
+  const typing = addMsg('ai', 'Claude가 답변 중...', 'diet-qa-msgs');
+  typing.classList.add('typing');
+
+  const historyText = dietQAHistory.map(m => `${m.role === 'user' ? '사용자' : 'AI'}: ${m.content}`).join('\n');
+  const promptText = `당신은 전문 영양사입니다. 아래는 사용자의 오늘 식단 분석 결과입니다.\n\n${lastAnalysisContext}\n\n---\n\n사용자가 이 분석 결과에 대해 추가로 질문합니다. 분석 내용을 참고해서 간결하고 실용적으로 한국어로 답변하세요.\n\n${historyText}`;
+
+  try {
+    const reply = await callGemini(promptText);
+    dietQAHistory.push({ role: 'assistant', content: reply });
+    typing.classList.remove('typing');
+    typing.textContent = reply;
+  } catch (err) {
+    typing.classList.remove('typing');
+    typing.textContent = '오류: ' + err.message;
   }
 }
 
