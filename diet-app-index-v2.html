@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" content="#0f1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="식단분석기">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <title>AI 식단 분석기</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3350;
+      --accent: #4ade80;
+      --accent2: #60a5fa;
+      --accent3: #f472b6;
+      --text: #e2e8f0;
+      --text-dim: #64748b;
+      --text-mid: #94a3b8;
+      --danger: #f87171;
+      --warn: #fbbf24;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ── AUTH SCREEN ── */
+    #auth-screen {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .auth-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 36px 28px;
+      width: 100%;
+      max-width: 380px;
+      text-align: center;
+    }
+    .auth-logo { font-size: 40px; margin-bottom: 12px; }
+    .auth-title { font-size: 22px; font-weight: 700; margin-bottom: 6px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .auth-sub { font-size: 13px; color: var(--text-mid); margin-bottom: 28px; }
+    .auth-input {
+      width: 100%; padding: 12px 14px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text);
+      font-family: 'Noto Sans KR', sans-serif; font-size: 14px;
+      margin-bottom: 10px; outline: none;
+    }
+    .auth-input:focus { border-color: var(--accent2); }
+    .auth-btn {
+      width: 100%; padding: 13px;
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      color: white; border: none; border-radius: 10px;
+      font-family: 'Noto Sans KR', sans-serif;
+      font-size: 15px; font-weight: 700; cursor: pointer;
+      margin-bottom: 10px; transition: opacity .2s;
+    }
+    .auth-btn:hover { opacity: .9; }
+    .auth-btn.google {
+      background: var(--surface2); color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .auth-divider {
+      font-size: 12px; color: var(--text-dim);
+      margin: 4px 0 10px; display: flex; align-items: center; gap: 8px;
+    }
+    .auth-divider::before, .auth-divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+    .auth-toggle {
+      font-size: 13px; color: var(--text-mid); margin-top: 16px; cursor: pointer;
+    }
+    .auth-toggle span { color: var(--accent2); text-decoration: underline; }
+    .auth-msg { font-size: 12px; margin-top: 8px; min-height: 18px; }
+    .auth-msg.err { color: var(--danger); }
+    .auth-msg.ok { color: var(--accent); }
+
+    /* ── APP SHELL ── */
+    #app-screen { display: none; }
+    .app-wrap { max-width: 520px; margin: 0 auto; padding: 0 16px 90px; }
+
+    /* header */
+    .app-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 0 12px;
+    }
+    .header-left .app-name { font-size: 18px; font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .header-left .user-email { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+    .logout-btn {
+      padding: 6px 14px; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text-mid); font-size: 12px; cursor: pointer;
+      font-family: 'Noto Sans KR', sans-serif;
+    }
+    .sync-badge {
+      font-size: 10px; color: var(--accent); padding: 2px 8px;
+      background: rgba(74,222,128,.1); border-radius: 99px;
+      border: 1px solid rgba(74,222,128,.2); margin-left: 8px;
+    }
+
+    /* bottom nav */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--surface); border-top: 1px solid var(--border);
+      display: flex; padding: 8px 0 max(8px, env(safe-area-inset-bottom));
+      z-index: 100;
+    }
+    .nav-btn {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      gap: 3px; padding: 6px 4px; background: none; border: none;
+      color: var(--text-dim); font-family: 'Noto Sans KR', sans-serif;
+      font-size: 10px; cursor: pointer; transition: color .15s;
+    }
+    .nav-btn.on { color: var(--accent); }
+    .nav-btn .nav-icon { font-size: 20px; }
+
+    /* panels */
+    .panel { display: none; }
+    .panel.on { display: block; }
+
+    /* card */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 18px; margin-bottom: 14px;
+    }
+    .sec {
+      font-size: 11px; font-weight: 700; letter-spacing: 1px;
+      text-transform: uppercase; color: var(--text-mid); margin-bottom: 13px;
+    }
+    label { font-size: 12px; color: var(--text-mid); margin-bottom: 5px; display: block; }
+    input, select, textarea {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text);
+      font-family: 'Noto Sans KR', sans-serif; font-size: 14px;
+      padding: 10px 12px; outline: none; transition: border-color .2s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--accent2); }
+    select option { background: var(--surface2); }
+    textarea { resize: none; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .full { grid-column: 1/-1; }
+
+    .btn-main {
+      width: 100%; padding: 12px;
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      color: white; border: none; border-radius: 10px;
+      font-family: 'Noto Sans KR', sans-serif;
+      font-size: 14px; font-weight: 700; cursor: pointer;
+      margin-top: 10px; transition: opacity .2s;
+    }
+    .btn-main:hover { opacity: .9; }
+    .btn-sub {
+      width: 100%; padding: 10px; background: var(--surface2);
+      color: var(--text-mid); border: 1px solid var(--border);
+      border-radius: 10px; font-family: 'Noto Sans KR', sans-serif;
+      font-size: 13px; cursor: pointer; margin-top: 8px;
+    }
+    .btn-sub:hover { border-color: var(--accent2); }
+    .btn-info {
+      width: 100%; padding: 12px;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      color: white; border: none; border-radius: 10px;
+      font-family: 'Noto Sans KR', sans-serif;
+      font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 10px;
+    }
+
+    /* stats */
+    .stat-row { display: grid; gap: 8px; margin-bottom: 12px; }
+    .stat3 { grid-template-columns: repeat(3,1fr); }
+    .stat4 { grid-template-columns: repeat(4,1fr); }
+    .stat {
+      background: var(--surface2); border-radius: 10px;
+      padding: 12px 8px; text-align: center;
+    }
+    .stat-val { font-size: 18px; font-weight: 500; font-family: 'DM Mono', monospace; }
+    .stat-lbl { font-size: 11px; color: var(--text-dim); margin-top: 3px; }
+
+    /* macro bars */
+    .macro-row { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+    .macro-name { font-size: 12px; color: var(--text-mid); width: 58px; flex-shrink: 0; }
+    .bar-wrap { flex: 1; background: var(--surface2); border-radius: 99px; height: 7px; overflow: hidden; }
+    .bar { height: 100%; border-radius: 99px; transition: width .5s ease; }
+    .macro-nums { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--text-mid); width: 96px; text-align: right; flex-shrink: 0; }
+    .macro-nums.over { color: var(--danger); }
+
+    /* style cards */
+    .style-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+    .style-card {
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 13px; cursor: pointer; transition: all .15s;
+      background: var(--surface2); position: relative;
+    }
+    .style-card:hover { border-color: var(--accent2); }
+    .style-card.selected { border: 2px solid var(--accent2); background: rgba(96,165,250,.06); }
+    .sc-badge {
+      position: absolute; top: 8px; right: 8px;
+      background: rgba(96,165,250,.15); color: var(--accent2);
+      font-size: 10px; padding: 2px 7px; border-radius: 99px; font-weight: 700;
+    }
+    .style-card.selected .sc-badge { background: var(--accent2); color: #fff; }
+    .sc-icon { font-size: 20px; margin-bottom: 6px; }
+    .sc-name { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+    .sc-desc { font-size: 11px; color: var(--text-mid); line-height: 1.5; }
+    .macro-preset { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
+    .mp-chip { padding: 2px 7px; border-radius: 99px; font-size: 10px; font-weight: 700; }
+    .mp-p { background: rgba(34,197,94,.12); color: #16a34a; }
+    .mp-c { background: rgba(96,165,250,.12); color: #2563eb; }
+    .mp-f { background: rgba(244,114,182,.12); color: #db2777; }
+
+    /* chat */
+    .chat-msgs {
+      height: 280px; overflow-y: auto; padding: 12px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; margin-bottom: 10px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .msg {
+      max-width: 84%; padding: 9px 12px; border-radius: 12px;
+      font-size: 13px; line-height: 1.6; word-break: keep-all; white-space: pre-wrap;
+    }
+    .msg.ai {
+      align-self: flex-start; background: var(--surface);
+      border: 1px solid var(--border); border-bottom-left-radius: 4px;
+    }
+    .msg.user {
+      align-self: flex-end; background: rgba(96,165,250,.15);
+      color: var(--accent2); border-bottom-right-radius: 4px;
+    }
+    .msg.typing { color: var(--text-mid); font-style: italic; }
+    .chat-row { display: flex; gap: 8px; }
+    .chat-row input { flex: 1; }
+    .chat-send {
+      padding: 10px 16px; background: var(--accent2); color: white;
+      border: none; border-radius: 8px; font-size: 13px;
+      font-weight: 700; cursor: pointer; white-space: nowrap;
+      font-family: 'Noto Sans KR', sans-serif;
+    }
+
+    /* result */
+    .result-box {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px; font-size: 13px;
+      line-height: 1.7; color: var(--text-mid); min-height: 56px;
+    }
+    .result-box.active { color: var(--text); }
+    .result-box table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12px; }
+    .result-box th { background: var(--surface); padding: 6px 8px; border: 1px solid var(--border); font-size: 11px; color: var(--text-mid); }
+    .result-box td { border: 1px solid var(--border); padding: 6px 8px; text-align: center; }
+    .result-box h1,.result-box h2,.result-box h3 { font-size: 14px; font-weight: 700; margin: 10px 0 5px; color: var(--accent2); }
+    .result-box strong { color: var(--accent); }
+    .result-box ul,.result-box ol { padding-left: 16px; }
+    .result-box li { margin-bottom: 3px; }
+    .result-box p { margin-bottom: 5px; }
+
+    /* misc */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 13px 0; }
+    .status-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); margin-top: 10px; }
+    .sdot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; }
+    .sdot.ok { background: var(--accent); }
+    .warn-box {
+      background: rgba(251,191,36,.08); border: 1px solid rgba(251,191,36,.3);
+      border-radius: 10px; padding: 12px 14px; font-size: 13px;
+      color: var(--warn); margin-bottom: 12px;
+    }
+    .day-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .dchip {
+      padding: 5px 13px; border-radius: 99px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text-mid);
+      font-size: 12px; cursor: pointer; font-family: 'Noto Sans KR', sans-serif;
+    }
+    .dchip.on { border-color: var(--accent); color: var(--accent); background: rgba(74,222,128,.08); }
+    .hist-item {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 13px; margin-bottom: 8px; font-size: 13px;
+    }
+    .hi-date { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--text-dim); margin-bottom: 3px; }
+    .loading-overlay {
+      position: fixed; inset: 0; background: rgba(15,17,23,.85);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 999; flex-direction: column; gap: 12px;
+    }
+    .loading-spinner {
+      width: 36px; height: 36px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (max-width: 400px) {
+      .grid2 { grid-template-columns: 1fr; }
+      .stat4 { grid-template-columns: repeat(2,1fr); }
+      .style-grid { grid-template-columns: 1fr; }
+    }
+    /* 데스크톱: 식단 패널을 2단으로 — 왼쪽 입력/분석, 오른쪽 AI 질문창(고정) */
+    @media (min-width: 860px) {
+      #panel-diet.on {
+        display: grid;
+        grid-template-columns: minmax(0,1fr) 320px;
+        grid-template-areas:
+          "top top"
+          "input qa"
+          "result qa";
+        gap: 16px;
+        max-width: 920px;
+        width: 100vw;
+        position: relative;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      #panel-diet #prof-warn,
+      #panel-diet #today-summary { grid-area: top; }
+      #panel-diet #diet-input-card { grid-area: input; }
+      #panel-diet #analysis-card { grid-area: result; }
+      #panel-diet #diet-qa-card {
+        grid-area: qa;
+        position: sticky;
+        top: 16px;
+        align-self: start;
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100vh - 32px);
+      }
+      #panel-diet #diet-qa-card .chat-msgs { flex: 1; height: auto; min-height: 220px; }
+    }
+    .apply-chat-btn {
+      width: 100%; padding: 12px;
+      background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+      color: white; border: none; border-radius: 10px;
+      font-family: 'Noto Sans KR', sans-serif;
+      font-size: 14px; font-weight: 700; cursor: pointer;
+      margin-top: 10px; display: none;
+    }
+    .info-note {
+      font-size: 11px; color: var(--text-dim); line-height: 1.6;
+      margin-top: 10px; padding: 10px 12px;
+      background: var(--surface2); border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loading">
+  <div class="loading-spinner"></div>
+  <div style="font-size:13px;color:var(--text-mid)">불러오는 중...</div>
+</div>
+
+<!-- AUTH -->
+<div id="auth-screen" style="display:none">
+  <div class="auth-card">
+    <div class="auth-logo">🥗</div>
+    <div class="auth-title">AI 식단 분석기</div>
+    <div class="auth-sub">PC와 모바일에서 동기화되는 맞춤 영양 관리</div>
+
+    <input class="auth-input" type="email" id="auth-email" placeholder="이메일 주소">
+    <input class="auth-input" type="password" id="auth-pw" placeholder="비밀번호">
+    <div id="auth-name-wrap" style="display:none">
+      <input class="auth-input" type="text" id="auth-name" placeholder="닉네임 (선택)">
+    </div>
+
+    <button class="auth-btn" onclick="doEmailAuth()">
+      <span id="auth-btn-text">로그인</span>
+    </button>
+
+    <div class="auth-divider">또는</div>
+    <button class="auth-btn google" onclick="doGoogleAuth()">
+      🔐 Google 계정으로 로그인
+    </button>
+
+    <div class="auth-msg" id="auth-msg"></div>
+    <div class="auth-toggle" id="auth-toggle" onclick="toggleAuthMode()">
+      계정이 없으신가요? <span>회원가입</span>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app-screen">
+  <div class="app-wrap">
+    <!-- header -->
+    <div class="app-header">
+      <div class="header-left">
+        <div class="app-name">🥗 식단분석기 <span class="sync-badge">☁ 동기화됨</span></div>
+        <div class="user-email" id="user-email-display"></div>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">로그아웃</button>
+    </div>
+
+    <!-- PROFILE PANEL -->
+    <div class="panel on" id="panel-profile">
+      <div class="card">
+        <div class="sec">신체 정보</div>
+        <div class="grid2">
+          <div><label>나이</label><input type="number" id="age" placeholder="예: 28" min="10" max="100"></div>
+          <div><label>성별</label><select id="gender"><option value="male">남성</option><option value="female">여성</option></select></div>
+          <div><label>키 (cm)</label><input type="number" id="height" placeholder="예: 175"></div>
+          <div><label>몸무게 (kg)</label><input type="number" id="weight" placeholder="예: 70" step="0.1"></div>
+          <div class="full"><label>활동량</label>
+            <select id="activity">
+              <option value="1.2">거의 없음 (주로 앉아서 생활)</option>
+              <option value="1.375">약간 활동 (주 1~3회 가벼운 운동)</option>
+              <option value="1.55" selected>보통 활동 (주 3~5회 운동)</option>
+              <option value="1.725">활동적 (주 6~7회 운동)</option>
+              <option value="1.9">매우 활동적 (하루 2회 운동)</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn-main" onclick="saveProfile()">💾 저장 & 칼로리 계산</button>
+        <div class="status-row"><span class="sdot" id="pdot"></span><span id="pstatus">아직 저장되지 않았습니다</span></div>
+      </div>
+
+      <div class="card" id="calc-card" style="display:none">
+        <div class="sec">Mifflin-St Jeor 계산 결과</div>
+        <div class="stat-row stat3">
+          <div class="stat"><div class="stat-val" id="bmrv">—</div><div class="stat-lbl">BMR</div></div>
+          <div class="stat"><div class="stat-val" style="color:var(--accent2)" id="tdeev">—</div><div class="stat-lbl">TDEE</div></div>
+          <div class="stat"><div class="stat-val" style="color:var(--accent)" id="targetv">—</div><div class="stat-lbl">목표 kcal<br><span style="font-size:10px;font-weight:400" id="goal-lbl"></span></div></div>
+        </div>
+        <div class="sec" style="margin-top:4px">적용 중인 영양소 목표</div>
+        <div class="macro-row"><span class="macro-name">단백질</span><div class="bar-wrap"><div class="bar" style="width:100%;background:#22c55e"></div></div><span class="macro-nums" id="tp">—</span></div>
+        <div class="macro-row"><span class="macro-name">탄수화물</span><div class="bar-wrap"><div class="bar" style="width:100%;background:#60a5fa"></div></div><span class="macro-nums" id="tc">—</span></div>
+        <div class="macro-row"><span class="macro-name">지방</span><div class="bar-wrap"><div class="bar" style="width:100%;background:#f472b6"></div></div><span class="macro-nums" id="tf">—</span></div>
+        <div class="info-note">📌 적용 스타일: <strong id="applied-style-name">Mifflin-St Jeor 기본</strong></div>
+      </div>
+
+      <div class="card">
+        <div class="sec">주간 몸무게 업데이트 요일</div>
+        <div class="day-chips" id="daychips">
+          <div class="dchip" data-d="0" onclick="pickDay(this)">일</div>
+          <div class="dchip on" data-d="1" onclick="pickDay(this)">월</div>
+          <div class="dchip" data-d="2" onclick="pickDay(this)">화</div>
+          <div class="dchip" data-d="3" onclick="pickDay(this)">수</div>
+          <div class="dchip" data-d="4" onclick="pickDay(this)">목</div>
+          <div class="dchip" data-d="5" onclick="pickDay(this)">금</div>
+          <div class="dchip" data-d="6" onclick="pickDay(this)">토</div>
+        </div>
+        <button class="btn-sub" onclick="saveDay()">✓ 요일 저장</button>
+        <div id="weekly-form" style="display:none">
+          <div class="divider"></div>
+          <div style="display:inline-block;margin-bottom:9px;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;background:rgba(74,222,128,.1);color:var(--accent)">📅 오늘이 업데이트 날!</div>
+          <label>새 몸무게 (kg)</label>
+          <input type="number" id="new-weight" placeholder="예: 69.5" step="0.1" style="margin-bottom:8px">
+          <button class="btn-main" onclick="doWeeklyUpdate()">🔄 업데이트 & 재계산</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STYLE PANEL -->
+    <div class="panel" id="panel-style">
+      <div class="card">
+        <div class="sec">다이어트 스타일 선택</div>
+        <p style="font-size:13px;color:var(--text-mid);margin-bottom:14px">스타일을 선택하면 영양소 비율이 자동 적용됩니다. 모르겠다면 아래 AI 상담을 이용해보세요.</p>
+        <div class="style-grid" id="style-grid"></div>
+        <button class="btn-main" id="apply-style-btn" onclick="applyStyle()" disabled style="opacity:.5">✓ 선택한 스타일 적용</button>
+        <div id="style-ok" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.2);border-radius:8px;font-size:12px;color:var(--accent)"></div>
+      </div>
+
+      <div class="card">
+        <div class="sec">🤖 AI 다이어트 상담</div>
+        <p style="font-size:13px;color:var(--text-mid);margin-bottom:12px">어떤 스타일이 맞는지 모르겠다면 편하게 이야기해보세요. Claude가 분석 후 목표 칼로리를 자동 설정합니다.</p>
+        <div class="chat-msgs" id="chat-msgs"></div>
+        <div class="chat-row">
+          <input type="text" id="chat-in" placeholder="예: 밥을 못 끊겠어요, 근육은 유지하고 싶어요" onkeydown="if(event.key==='Enter')sendChat()">
+          <button class="chat-send" onclick="sendChat()">전송</button>
+        </div>
+        <button class="apply-chat-btn" id="apply-chat-btn" onclick="applyChatResult()">✨ 이 설정을 목표 칼로리에 적용</button>
+      </div>
+    </div>
+
+    <!-- DIET PANEL -->
+    <div class="panel" id="panel-diet">
+      <div class="warn-box" id="prof-warn" style="display:none">⚠️ 먼저 <strong>프로필</strong> 탭에서 신체 정보를 저장해주세요!</div>
+      <div class="card" id="today-summary" style="display:none">
+        <div class="sec">오늘의 목표 <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim)" id="style-badge-diet"></span></div>
+        <div class="stat-row stat4">
+          <div class="stat"><div class="stat-val" id="s-cal">—</div><div class="stat-lbl">목표 kcal</div></div>
+          <div class="stat"><div class="stat-val" style="color:#22c55e" id="s-p">—</div><div class="stat-lbl">단백질 g</div></div>
+          <div class="stat"><div class="stat-val" style="color:#60a5fa" id="s-c">—</div><div class="stat-lbl">탄수화물 g</div></div>
+          <div class="stat"><div class="stat-val" style="color:#f472b6" id="s-f">—</div><div class="stat-lbl">지방 g</div></div>
+        </div>
+      </div>
+      <div class="card" id="diet-input-card">
+        <div class="sec">오늘 먹은 음식</div>
+        <textarea id="food-input" placeholder="예: 아침 달걀 2개, 오트밀 80g / 점심 닭가슴살 150g, 밥 200g / 저녁 삼겹살 200g" style="height:80px"></textarea>
+        <button class="btn-main" onclick="analyze()">🔍 영양 분석 + AI 추천</button>
+      </div>
+      <div class="card" id="analysis-card" style="display:none">
+        <div class="sec">섭취 현황</div>
+        <div id="macro-bars"></div>
+        <div class="divider"></div>
+        <div class="sec">Claude AI 추천</div>
+        <div class="result-box" id="ai-result">분석 결과가 여기에 표시됩니다.</div>
+      </div>
+      <div class="card" id="diet-qa-card">
+        <div class="sec">💬 분석 결과 물어보기</div>
+        <div class="chat-msgs" id="diet-qa-msgs" style="height:180px"></div>
+        <div class="chat-row">
+          <input type="text" id="diet-qa-in" placeholder="예: 단백질 더 채우려면 뭘 먹을까요?" onkeydown="if(event.key==='Enter')sendDietQA()" disabled>
+          <button class="chat-send" onclick="sendDietQA()">전송</button>
+        </div>
+        <p id="diet-qa-hint" style="font-size:12px;color:var(--text-dim);margin-top:8px">먼저 위에서 분석을 실행하면 결과에 대해 물어볼 수 있어요.</p>
+      </div>
+    </div>
+
+    <!-- HISTORY PANEL -->
+    <div class="panel" id="panel-history">
+      <div class="card">
+        <div class="sec">몸무게 업데이트 기록</div>
+        <div id="hist-list"><p style="font-size:13px;color:var(--text-dim)">아직 기록이 없습니다.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div class="bottom-nav">
+    <button class="nav-btn on" onclick="goPanel('profile',this)">
+      <span class="nav-icon">👤</span>프로필
+    </button>
+    <button class="nav-btn" onclick="goPanel('style',this)">
+      <span class="nav-icon">🎯</span>스타일
+    </button>
+    <button class="nav-btn" onclick="goPanel('diet',this)">
+      <span class="nav-icon">🍽</span>오늘식단
+    </button>
+    <button class="nav-btn" onclick="goPanel('history',this)">
+      <span class="nav-icon">📅</span>기록
+    </button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// SUPABASE CONFIG  ← 여기에 본인 값 입력
+// ══════════════════════════════════════════
+const SUPABASE_URL = 'https://zetsecttqnjvknkgoyvj.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpldHNlY3R0cW5qdmtua2dveXZqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwMjE2NzcsImV4cCI6MjA5NDU5NzY3N30.oq5jhx2wzVm6Nso9icxIpap-v9uVnGlkJA1HzXblTIQ';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── STATE ──
+let currentUser = null;
+let profile = null;
+let weekDay = 1;
+let hist = [];
+let dietStyle = null;
+let targets = null;
+let selectedStyleKey = null;
+let chatHistory = [];
+let chatResult = null;
+let dietQAHistory = [];
+let lastAnalysisContext = '';
+
+// ── STYLE PRESETS ──
+const STYLES = {
+  mifflin:     { name:'Mifflin-St Jeor', icon:'🧮', desc:'과학적 기초대사량 공식 기반. 가장 정확한 개인 맞춤 칼로리.', badge:'기본 추천', ratios:{p:.30,c:.45,f:.25}, adj:-400, note:'감량 -400kcal' },
+  keto:        { name:'저탄고지 (케토)', icon:'🥩', desc:'탄수화물 극제한, 지방이 주 에너지원. 체지방 연소 극대화.', badge:'저탄수화물', ratios:{p:.25,c:.05,f:.70}, adj:-300, note:'탄5%/지방70%' },
+  carb_cycle:  { name:'탄수화물 사이클링', icon:'🔄', desc:'운동일 탄수↑ 휴식일 탄수↓. 근손실 없이 체지방 감소.', badge:'고급', ratios:{p:.35,c:.40,f:.25}, adj:-250, note:'운동일 기준' },
+  highprotein: { name:'고단백 다이어트', icon:'🥚', desc:'단백질 극대화로 근육 보존 + 포만감 유지.', badge:'근육 보존', ratios:{p:.45,c:.30,f:.25}, adj:-350, note:'단백질 45%' },
+  if_168:      { name:'간헐적 단식 16:8', icon:'⏰', desc:'16시간 공복, 8시간 식사창. 인슐린 민감성 개선.', badge:'시간 제한', ratios:{p:.30,c:.45,f:.25}, adj:-200, note:'식사창 8시간' },
+  maintain:    { name:'유지식 / 린벌크', icon:'⚖️', desc:'체중 유지 또는 소폭 증량. 근육만 점진적으로 증가.', badge:'유지·증량', ratios:{p:.30,c:.50,f:.20}, adj:+200, note:'TDEE +200' }
+};
+
+// ══════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════
+let isSignUp = false;
+
+function toggleAuthMode() {
+  isSignUp = !isSignUp;
+  document.getElementById('auth-btn-text').textContent = isSignUp ? '회원가입' : '로그인';
+  document.getElementById('auth-name-wrap').style.display = isSignUp ? 'block' : 'none';
+  document.getElementById('auth-toggle').innerHTML = isSignUp
+    ? '이미 계정이 있으신가요? <span>로그인</span>'
+    : '계정이 없으신가요? <span>회원가입</span>';
+  document.getElementById('auth-msg').textContent = '';
+}
+
+function setAuthMsg(msg, ok) {
+  const el = document.getElementById('auth-msg');
+  el.textContent = msg;
+  el.className = 'auth-msg ' + (ok ? 'ok' : 'err');
+}
+
+async function doEmailAuth() {
+  const email = document.getElementById('auth-email').value.trim();
+  const pw = document.getElementById('auth-pw').value;
+  if (!email || !pw) { setAuthMsg('이메일과 비밀번호를 입력해주세요.'); return; }
+  if (isSignUp) {
+    const { error } = await sb.auth.signUp({ email, password: pw });
+    if (error) { setAuthMsg(error.message); return; }
+    setAuthMsg('가입 완료! 이메일을 확인해주세요. (확인 후 로그인)', true);
+  } else {
+    const { error } = await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) { setAuthMsg('이메일/비밀번호를 확인해주세요.'); return; }
+  }
+}
+
+async function doGoogleAuth() {
+  await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
+}
+
+// ── AUTH STATE CHANGE ──
+let authResolved = false;
+
+setTimeout(() => {
+  if (!authResolved) {
+    authResolved = true;
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('app-screen').style.display = 'none';
+  }
+}, 4000);
+
+// 로딩 스피너 안전장치: 6초 후 무조건 숨김
+setTimeout(() => {
+  document.getElementById('loading').style.display = 'none';
+}, 6000);
+
+sb.auth.onAuthStateChange(async (event, session) => {
+  if (session?.user) {
+    authResolved = true;
+    currentUser = session.user;
+    document.getElementById('user-email-display').textContent = currentUser.email;
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app-screen').style.display = 'block';
+    document.getElementById('loading').style.display = 'flex';
+    try {
+      await loadUserData();
+    } catch (e) {
+      console.error('데이터 로드 오류:', e);
+    }
+    document.getElementById('loading').style.display = 'none';
+  } else {
+    if (authResolved) return;
+    authResolved = true;
+    currentUser = null;
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('app-screen').style.display = 'none';
+  }
+});
+
+// ══════════════════════════════════════════
+// SUPABASE DATA SYNC
+// ══════════════════════════════════════════
+async function loadUserData() {
+  const uid = currentUser.id;
+  try {
+    const { data: pd, error } = await sb
+      .from('profiles')
+      .select('*')
+      .eq('user_id', uid)
+      .maybeSingle();
+    if (error) console.error('profiles 조회 오류:', error);
+    if (pd) {
+      profile = pd.data;
+      weekDay = pd.week_day ?? 1;
+      dietStyle = pd.diet_style ?? null;
+      await loadHistory();
+      restoreUI();
+    }
+  } catch (e) {
+    console.error('loadUserData 오류:', e);
+  }
+  initStyleGrid();
+  initChat();
+  checkToday();
+}
+async function saveToCloud(field, value) {
+  const uid = currentUser.id;
+  const { data: existing } = await sb.from('profiles').select('id').eq('user_id', uid).single();
+  const payload = { user_id: uid, [field]: value, updated_at: new Date().toISOString() };
+  if (existing) {
+    await sb.from('profiles').update(payload).eq('user_id', uid);
+  } else {
+    await sb.from('profiles').insert(payload);
+  }
+}
+
+async function saveProfileCloud() {
+  await saveToCloud('data', profile);
+}
+async function saveDayCloud() {
+  await saveToCloud('week_day', weekDay);
+}
+async function saveStyleCloud() {
+  await saveToCloud('diet_style', dietStyle);
+}
+
+async function saveHistoryEntry(entry) {
+  await sb.from('weight_history').insert({ user_id: currentUser.id, ...entry });
+}
+async function loadHistory() {
+  const { data } = await sb.from('weight_history').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(20);
+  if (data) hist = data.map(r => ({ date: r.date, weight: r.weight, prev: r.prev }));
+}
+
+// ══════════════════════════════════════════
+// UI RESTORE
+// ══════════════════════════════════════════
+function restoreUI() {
+  if (!profile) return;
+  document.getElementById('age').value      = profile.age;
+  document.getElementById('gender').value   = profile.gender;
+  document.getElementById('height').value   = profile.height;
+  document.getElementById('weight').value   = profile.weight;
+  document.getElementById('activity').value = profile.activity;
+  targets = calcTargets();
+  renderCalc(targets);
+  document.getElementById('pdot').className = 'sdot ok';
+  document.getElementById('pstatus').textContent = `저장됨 · ${profile.weight}kg 기준`;
+  if (dietStyle) document.getElementById('applied-style-name').textContent = dietStyle.name;
+  document.querySelectorAll('.dchip').forEach(c => c.classList.remove('on'));
+  document.querySelector(`.dchip[data-d="${weekDay}"]`)?.classList.add('on');
+  renderHist();
+}
+
+// ══════════════════════════════════════════
+// MIFFLIN
+// ══════════════════════════════════════════
+function calcBMR() {
+  if (!profile) return 0;
+  const { age, gender, height, weight } = profile;
+  return gender === 'male' ? 10*weight+6.25*height-5*age+5 : 10*weight+6.25*height-5*age-161;
+}
+function calcTDEE() { return Math.round(calcBMR() * parseFloat(profile.activity)); }
+function calcTargets() {
+  if (!profile) return null;
+  const bmr = Math.round(calcBMR());
+  const tdee = calcTDEE();
+  if (dietStyle?.source === 'chat' && dietStyle.custom) {
+    return { bmr, tdee, tc: dietStyle.custom.cal, protein: dietStyle.custom.protein, carb: dietStyle.custom.carb, fat: dietStyle.custom.fat, lbl: 'AI 상담' };
+  }
+  let ratios = { p:.30, c:.45, f:.25 }, adj = -400, lbl = '감량 -400';
+  if (dietStyle?.key && STYLES[dietStyle.key]) {
+    const s = STYLES[dietStyle.key];
+    ratios = s.ratios; adj = s.adj; lbl = s.note;
+  }
+  const tc = tdee + adj;
+  return { bmr, tdee, tc, protein: Math.round(tc*ratios.p/4), carb: Math.round(tc*ratios.c/4), fat: Math.round(tc*ratios.f/9), lbl };
+}
+function renderCalc(r) {
+  if (!r) return;
+  document.getElementById('bmrv').textContent   = r.bmr.toLocaleString();
+  document.getElementById('tdeev').textContent  = r.tdee.toLocaleString();
+  document.getElementById('targetv').textContent= r.tc.toLocaleString();
+  document.getElementById('goal-lbl').textContent = r.lbl || '';
+  document.getElementById('tp').textContent = r.protein + 'g';
+  document.getElementById('tc').textContent = r.carb + 'g';
+  document.getElementById('tf').textContent = r.fat + 'g';
+  document.getElementById('calc-card').style.display = 'block';
+}
+
+// ══════════════════════════════════════════
+// PROFILE SAVE
+// ══════════════════════════════════════════
+async function saveProfile() {
+  const age    = parseFloat(document.getElementById('age').value);
+  const gender = document.getElementById('gender').value;
+  const h      = parseFloat(document.getElementById('height').value);
+  const w      = parseFloat(document.getElementById('weight').value);
+  const act    = parseFloat(document.getElementById('activity').value);
+  if (!age || !h || !w) { alert('나이, 키, 몸무게를 모두 입력해주세요!'); return; }
+  profile = { age, gender, height: h, weight: w, activity: act };
+  targets = calcTargets();
+  renderCalc(targets);
+  document.getElementById('pdot').className = 'sdot ok';
+  document.getElementById('pstatus').textContent = `저장 완료 · ${w}kg 기준`;
+  await saveProfileCloud();
+}
+
+// ══════════════════════════════════════════
+// WEEKLY
+// ══════════════════════════════════════════
+function pickDay(el) {
+  document.querySelectorAll('.dchip').forEach(c => c.classList.remove('on'));
+  el.classList.add('on');
+  weekDay = parseInt(el.dataset.d);
+}
+async function saveDay() {
+  await saveDayCloud();
+  const days = ['일','월','화','수','목','금','토'];
+  alert(`매주 ${days[weekDay]}요일로 저장되었습니다!`);
+  checkToday();
+}
+function checkToday() {
+  document.getElementById('weekly-form').style.display = (new Date().getDay() === weekDay) ? 'block' : 'none';
+}
+async function doWeeklyUpdate() {
+  const nw = parseFloat(document.getElementById('new-weight').value);
+  if (!nw || nw < 20 || nw > 300) { alert('올바른 몸무게를 입력해주세요.'); return; }
+  if (!profile) { alert('먼저 프로필을 저장해주세요!'); return; }
+  const oldW = profile.weight;
+  profile.weight = nw;
+  const entry = { date: new Date().toLocaleDateString('ko-KR'), weight: nw, prev: oldW };
+  hist.unshift(entry);
+  if (hist.length > 20) hist.pop();
+  targets = calcTargets();
+  renderCalc(targets);
+  document.getElementById('pstatus').textContent = `저장됨 · ${nw}kg (업데이트됨)`;
+  document.getElementById('new-weight').value = '';
+  await saveProfileCloud();
+  await saveHistoryEntry(entry);
+  const diff = (nw - oldW).toFixed(1);
+  alert(`업데이트 완료!\n${oldW}kg → ${nw}kg (${diff > 0 ? '+' : ''}${diff}kg)`);
+  renderHist();
+}
+
+// ══════════════════════════════════════════
+// HISTORY
+// ══════════════════════════════════════════
+function renderHist() {
+  const el = document.getElementById('hist-list');
+  if (!hist.length) { el.innerHTML = '<p style="font-size:13px;color:var(--text-dim)">아직 기록이 없습니다.</p>'; return; }
+  el.innerHTML = hist.map(h => {
+    const d = (h.weight - h.prev).toFixed(1);
+    const col = d > 0 ? 'var(--danger)' : 'var(--accent)';
+    return `<div class="hist-item"><div class="hi-date">${h.date}</div>
+    <strong>${h.weight}kg</strong>
+    <span style="font-size:12px;color:${col};margin-left:8px">(${d > 0 ? '+' : ''}${d}kg)</span>
+    <span style="font-size:12px;color:var(--text-dim);margin-left:4px">← 이전 ${h.prev}kg</span></div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════
+// STYLE
+// ══════════════════════════════════════════
+function initStyleGrid() {
+  document.getElementById('style-grid').innerHTML = Object.entries(STYLES).map(([key, s]) => `
+    <div class="style-card${dietStyle?.key === key ? ' selected' : ''}" data-key="${key}" onclick="selectStyle(this,'${key}')">
+      <div class="sc-badge">${s.badge}</div>
+      <div class="sc-icon">${s.icon}</div>
+      <div class="sc-name">${s.name}</div>
+      <div class="sc-desc">${s.desc}</div>
+      <div class="macro-preset">
+        <span class="mp-chip mp-p">단 ${Math.round(s.ratios.p*100)}%</span>
+        <span class="mp-chip mp-c">탄 ${Math.round(s.ratios.c*100)}%</span>
+        <span class="mp-chip mp-f">지 ${Math.round(s.ratios.f*100)}%</span>
+      </div>
+    </div>`).join('');
+  if (dietStyle?.key) {
+    selectedStyleKey = dietStyle.key;
+    const btn = document.getElementById('apply-style-btn');
+    btn.disabled = false; btn.style.opacity = '1';
+  }
+}
+
+function selectStyle(el, key) {
+  document.querySelectorAll('.style-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedStyleKey = key;
+  const btn = document.getElementById('apply-style-btn');
+  btn.disabled = false; btn.style.opacity = '1';
+}
+
+async function applyStyle() {
+  if (!selectedStyleKey) return;
+  if (!profile) { alert('먼저 프로필을 저장해주세요!'); return; }
+  const s = STYLES[selectedStyleKey];
+  dietStyle = { key: selectedStyleKey, name: s.name, ratios: s.ratios, source: 'preset' };
+  targets = calcTargets();
+  renderCalc(targets);
+  document.getElementById('applied-style-name').textContent = s.name;
+  const ok = document.getElementById('style-ok');
+  ok.style.display = 'block';
+  ok.textContent = `✓ "${s.name}" 스타일이 적용되었습니다!`;
+  await saveStyleCloud();
+}
+
+// ══════════════════════════════════════════
+// CHAT
+// ══════════════════════════════════════════
+function initChat() {
+  chatHistory = []; chatResult = null;
+  const msgs = document.getElementById('chat-msgs');
+  msgs.innerHTML = '';
+  addMsg('ai', `안녕하세요! 저는 Claude AI 영양 상담사입니다. 🥗\n\n어떤 다이어트 스타일이 맞는지 모르겠다면 편하게 말씀해주세요.\n\n예) "밥을 못 끊겠어요" / "운동을 주 4회 하는데 근육은 유지하고 싶어요" / "야식을 자주 먹어요"`);
+}
+
+function addMsg(role, text, containerId = 'chat-msgs') {
+  const msgs = document.getElementById(containerId);
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  div.textContent = text;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+// ══════════════════════════════════════════
+// GEMINI API HELPER (상담/분석/질문 공용)
+// ══════════════════════════════════════════
+async function callGemini(promptText) {
+  const res = await fetch('/api/gemini', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.candidates[0].content.parts[0].text;
+}
+
+async function sendChat() {
+  const inp = document.getElementById('chat-in');
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  addMsg('user', text);
+  chatHistory.push({ role: 'user', content: text });
+  const typing = addMsg('ai', 'Claude가 답변 중...');
+  typing.classList.add('typing');
+
+  const profileInfo = profile
+    ? `사용자: ${profile.age}세, ${profile.gender === 'male' ? '남성' : '여성'}, 키 ${profile.height}cm, 몸무게 ${profile.weight}kg, TDEE 약 ${calcTDEE()}kcal`
+    : '사용자 신체정보 미입력';
+
+  const systemPrompt = `당신은 친절한 다이어트 영양 상담사입니다. ${profileInfo}\n\n대화를 통해 최적의 다이어트 방법을 찾아주세요. 충분한 정보가 모이면 아래 형식으로 최종 추천하세요:\n\n[최종추천]\n스타일명: (예: 고단백 다이어트)\n목표칼로리: (숫자)\n단백질: (g)\n탄수화물: (g)\n지방: (g)\n이유: (2-3문장)\n[/최종추천]\n\n최종 추천 전 충분히 대화하세요. 한국어로 답변하세요.`;
+  const messages = [{ role: 'user', content: systemPrompt + '\n\n---\n\n' + chatHistory.map(m => `${m.role === 'user' ? '사용자' : '상담사'}: ${m.content}`).join('\n') }];
+
+  try {
+    const userText = messages.map(m => m.content).join('\n');
+    const reply = await callGemini(userText);
+    chatHistory.push({ role: 'assistant', content: reply });
+    const match = reply.match(/\[최종추천\]([\s\S]*?)\[\/최종추천\]/);
+    const displayText = reply.replace(/\[최종추천\][\s\S]*?\[\/최종추천\]/, '').trim();
+    typing.classList.remove('typing');
+    typing.textContent = displayText || reply;
+
+    if (match) {
+      const block = match[1];
+      const get = key => { const m = block.match(new RegExp(key + '[:\\s]+([^\\n]+')); return m ? m[1].trim() : ''; };
+      const cal  = parseInt(get('목표칼로리').replace(/\D/g,''));
+      const prot = parseInt(get('단백질').replace(/\D/g,''));
+      const carb = parseInt(get('탄수화물').replace(/\D/g,''));
+      const fat  = parseInt(get('지방').replace(/\D/g,''));
+      const sname = get('스타일명');
+      if (cal && prot && carb && fat) {
+        chatResult = { cal, protein: prot, carb, fat, styleName: sname };
+        document.getElementById('apply-chat-btn').style.display = 'block';
+        const summary = document.createElement('div');
+        summary.style.cssText = 'margin-top:8px;padding:10px 12px;background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.2);border-radius:8px;font-size:12px;color:var(--accent)';
+        summary.innerHTML = `<strong>추천 결과</strong>: ${sname}<br>목표 ${cal}kcal · 단백질 ${prot}g · 탄수화물 ${carb}g · 지방 ${fat}g`;
+        document.getElementById('chat-msgs').appendChild(summary);
+        document.getElementById('chat-msgs').scrollTop = 9999;
+      }
+    }
+  } catch (err) {
+    typing.classList.remove('typing');
+    typing.textContent = '오류: ' + err.message;
+  }
+}
+
+async function applyChatResult() {
+  if (!chatResult) return;
+  dietStyle = { key: 'chat', name: 'AI 상담 (' + chatResult.styleName + ')', custom: { cal: chatResult.cal, protein: chatResult.protein, carb: chatResult.carb, fat: chatResult.fat }, source: 'chat' };
+  targets = calcTargets();
+  renderCalc(targets);
+  document.getElementById('applied-style-name').textContent = dietStyle.name;
+  document.getElementById('apply-chat-btn').style.display = 'none';
+  await saveStyleCloud();
+  alert('AI 상담 결과가 목표 칼로리에 적용되고 저장되었습니다!');
+}
+
+// ══════════════════════════════════════════
+// ANALYSIS
+// ══════════════════════════════════════════
+function renderBars(intake) {
+  const t = targets;
+  const items = [
+    { name:'칼로리', val:intake.cal,     tgt:t.tc,      unit:'kcal', color:'#fbbf24' },
+    { name:'단백질', val:intake.protein, tgt:t.protein, unit:'g',    color:'#22c55e' },
+    { name:'탄수화물',val:intake.carb,   tgt:t.carb,    unit:'g',    color:'#60a5fa' },
+    { name:'지방',   val:intake.fat,     tgt:t.fat,     unit:'g',    color:'#f472b6' },
+  ];
+  document.getElementById('macro-bars').innerHTML = items.map(it => {
+    const pct = Math.min(Math.round(it.val / it.tgt * 100), 100);
+    const over = it.val > it.tgt;
+    const remain = Math.round(it.tgt - it.val);
+    return `<div class="macro-row">
+      <span class="macro-name">${it.name}</span>
+      <div class="bar-wrap"><div class="bar" style="width:${pct}%;background:${over ? 'var(--danger)' : it.color}"></div></div>
+      <span class="macro-nums${over ? ' over' : ''}">
+        ${it.val}/${it.tgt}${it.unit}
+        <span style="font-size:10px;display:block">${over ? '⚠ +' + Math.abs(remain) : '남은 ' + remain}${it.unit}</span>
+      </span></div>`;
+  }).join('');
+}
+
+function parseIntake(text) {
+  try {
+    for (const ln of text.split('\n')) {
+      if (ln.includes('합계') || ln.includes('총계')) {
+        const nums = ln.match(/[\d,]+\.?\d*/g);
+        if (nums && nums.length >= 4) return { cal: parseFloat(nums[0].replace(',','')), protein: parseFloat(nums[1]), carb: parseFloat(nums[2]), fat: parseFloat(nums[3]) };
+      }
+    }
+  } catch(e) {}
+  return null;
+}
+
+async function analyze() {
+  const input = document.getElementById('food-input').value.trim();
+  if (!input) { alert('먹은 음식을 입력해주세요!'); return; }
+  if (!profile) { alert('먼저 프로필을 저장해주세요!'); return; }
+  if (!targets) targets = calcTargets();
+
+  const aiDiv = document.getElementById('ai-result');
+  document.getElementById('analysis-card').style.display = 'block';
+  document.getElementById('macro-bars').innerHTML = '<p style="font-size:13px;color:var(--text-dim)">분석 중...</p>';
+  aiDiv.className = 'result-box';
+  aiDiv.innerHTML = 'Claude AI가 분석 중입니다...';
+
+  const actMap = {'1.2':'거의 없음','1.375':'약간 활동','1.55':'보통 활동','1.725':'활동적','1.9':'매우 활동적'};
+  const sname = dietStyle ? dietStyle.name : 'Mifflin-St Jeor 기본';
+  const t = targets;
+
+  const prompt = `당신은 전문 영양사입니다. 사용자 정보를 바탕으로 오늘 섭취 음식을 분석하고 부족 영양소를 채울 음식을 추천해주세요.
+
+## 사용자 정보
+- ${profile.age}세, ${profile.gender==='male'?'남성':'여성'}, 키 ${profile.height}cm, 몸무게 ${profile.weight}kg
+- 활동량: ${actMap[String(profile.activity)]}
+- 다이어트 스타일: ${sname}
+
+## 오늘 목표
+- 칼로리: ${t.tc}kcal / 단백질: ${t.protein}g / 탄수화물: ${t.carb}g / 지방: ${t.fat}g
+
+## 오늘 먹은 음식
+${input}
+
+## 요청사항
+1. **섭취 영양소 분석표**: 음식별 칼로리, 단백질(g), 탄수화물(g), 지방(g) 표. 마지막 행에 합계.
+2. **목표 대비 분석표**: 목표 vs 섭취 vs 남은양.
+3. **${sname} 스타일 맞춤 보충 음식 5가지** (영양소 함량 포함).
+4. **한 줄 총평**.
+
+한국어로 답변해주세요.`;
+
+  try {
+    const text = await callGemini(prompt);
+    const intake = parseIntake(text);
+    if (intake) renderBars(intake);
+    else document.getElementById('macro-bars').innerHTML = '';
+    aiDiv.className = 'result-box active';
+    aiDiv.innerHTML = marked.parse(text);
+    resetDietQA(text);
+  } catch (err) {
+    aiDiv.className = 'result-box active';
+    aiDiv.innerHTML = `<span style="color:var(--danger)">오류: ${err.message}</span>`;
+  }
+}
+
+// ══════════════════════════════════════════
+// DIET Q&A (분석 결과 후속 질문)
+// ══════════════════════════════════════════
+function resetDietQA(analysisText) {
+  lastAnalysisContext = analysisText;
+  dietQAHistory = [];
+  document.getElementById('diet-qa-msgs').innerHTML = '';
+  document.getElementById('diet-qa-in').disabled = false;
+  document.getElementById('diet-qa-hint').style.display = 'none';
+  addMsg('ai', '분석 결과에 대해 궁금한 점을 물어보세요. 예) "탄수화물을 더 줄이려면?" "저녁에 뭘 더 채울까요?"', 'diet-qa-msgs');
+}
+
+async function sendDietQA() {
+  if (!lastAnalysisContext) return;
+  const inp = document.getElementById('diet-qa-in');
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  addMsg('user', text, 'diet-qa-msgs');
+  dietQAHistory.push({ role: 'user', content: text });
+  const typing = addMsg('ai', 'Claude가 답변 중...', 'diet-qa-msgs');
+  typing.classList.add('typing');
+
+  const historyText = dietQAHistory.map(m => `${m.role === 'user' ? '사용자' : 'AI'}: ${m.content}`).join('\n');
+  const promptText = `당신은 전문 영양사입니다. 아래는 사용자의 오늘 식단 분석 결과입니다.\n\n${lastAnalysisContext}\n\n---\n\n사용자가 이 분석 결과에 대해 추가로 질문합니다. 분석 내용을 참고해서 간결하고 실용적으로 한국어로 답변하세요.\n\n${historyText}`;
+
+  try {
+    const reply = await callGemini(promptText);
+    dietQAHistory.push({ role: 'assistant', content: reply });
+    typing.classList.remove('typing');
+    typing.textContent = reply;
+  } catch (err) {
+    typing.classList.remove('typing');
+    typing.textContent = '오류: ' + err.message;
+  }
+}
+
+// ══════════════════════════════════════════
+// PANEL NAV
+// ══════════════════════════════════════════
+function goPanel(name, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('on'));
+  document.getElementById('panel-' + name).classList.add('on');
+  btn.classList.add('on');
+  if (name === 'diet') {
+    if (!profile) {
+      document.getElementById('prof-warn').style.display = 'block';
+      document.getElementById('today-summary').style.display = 'none';
+    } else {
+      document.getElementById('prof-warn').style.display = 'none';
+      document.getElementById('today-summary').style.display = 'block';
+      if (!targets) targets = calcTargets();
+      document.getElementById('s-cal').textContent = targets.tc.toLocaleString();
+      document.getElementById('s-p').textContent   = targets.protein + 'g';
+      document.getElementById('s-c').textContent   = targets.carb + 'g';
+      document.getElementById('s-f').textContent   = targets.fat + 'g';
+      document.getElementById('style-badge-diet').textContent = '· ' + (dietStyle ? dietStyle.name : 'Mifflin-St Jeor');
+    }
+  }
+  if (name === 'history') renderHist();
+}
+</script>
+</body>
+</html>
